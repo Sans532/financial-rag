@@ -1,5 +1,7 @@
 # Financial RAG — Multi-Agent SEC Filing Analysis
 
+[github.com/Sans532/financial-rag](https://github.com/Sans532/financial-rag)
+
 A production-grade, multi-agent RAG system that answers natural-language questions about
 public companies by planning, retrieving SEC filings + market data, verifying every numeric
 claim against structured XBRL ground truth, and synthesizing a cited answer.
@@ -77,17 +79,27 @@ Defined in `src/data/universe.py`.
 - **Finnhub free tier** — company news. Requires a free email-signup API key (`FINNHUB_API_KEY`), no card.
 
 No paid LLM-adjacent APIs are required for retrieval — the only billed API surface is the
-Gemini model used for planning/synthesis/verification (`GOOGLE_API_KEY`), and Gemini's free
-tier covers light use of this project's default model.
+Gemini model used for planning/synthesis/verification (`GOOGLE_API_KEY` + `GEMINI_MODEL`).
+The default model is `gemini-3.1-flash-lite`, chosen for its free-tier daily request quota
+(500 RPD vs. 20 RPD on `gemini-2.5-flash`) — each query fires several LLM calls (planning,
+synthesis, claim extraction, and again on every verifier retry), so a full eval run needs
+real quota headroom. Swap `GEMINI_MODEL` for a stronger model (e.g. `gemini-2.5-pro`) if you
+want better qualitative/comparison answers and don't mind the lower free-tier quota or a
+paid-tier cost.
 
 ---
 
 ## Retrieval design
 
 - **Section-aware chunking** (`src/retrieval/chunking.py`): filings are split on `Item N`
-  headers first (Item 1A Risk Factors, Item 7 MD&A, etc.), then any section too long for a
-  single chunk is sub-split on paragraph boundaries with token overlap — not a naive
-  fixed-size sliding window blind to filing structure.
+  headers first, then any section too long for a single chunk is sub-split on paragraph
+  boundaries with token overlap — not a naive fixed-size sliding window blind to filing
+  structure. Item-number-to-title mapping is both filing-type- and Part-aware: 10-Ks and
+  10-Qs use entirely different Item numbering (10-K Item 7 = MD&A; 10-Q Item 7 doesn't
+  exist), and 10-Qs additionally reuse Item numbers 1-4 across Part I (Financial
+  Statements, MD&A, ...) and Part II (Legal Proceedings, Risk Factors, ...) with different
+  meanings each time — the chunker tracks the current Part while parsing so both
+  occurrences resolve to the correct title.
 - **Persistent vector store**: Qdrant (self-hosted via docker-compose), storing chunk text
   alongside company/filing-type/date/section metadata used for both retrieval filtering and
   citation.
@@ -127,8 +139,9 @@ This is the part of the project meant to be defensible in an interview, not an a
    This writes `eval_report.md` (also servable via `GET /eval-report`) and prints it to
    stdout. Run this yourself with a configured `GOOGLE_API_KEY` and an ingested corpus —
    results depend on your ingested filings and will vary by model/config, so no fixed
-   numbers are hardcoded here. A full 30-question run at the default `gemini-2.5-flash`
-   model costs well under $1 (likely free, within Gemini's free-tier quota).
+   numbers are hardcoded here. A full 30-question run at the default `gemini-3.1-flash-lite`
+   model costs a few cents at paid-tier pricing (likely free within Gemini's free-tier
+   daily quota) — see `src/eval/latency.py::MODEL_PRICING`.
 
 ---
 
@@ -169,17 +182,41 @@ docker compose up --build
 ```
 
 This starts Qdrant (`localhost:6333`), the API (`localhost:8000`), and the Streamlit UI
-(`localhost:8501`).
+(`localhost:8501`). No Docker Desktop on macOS? [Colima](https://github.com/abiosoft/colima)
+is a fully CLI-installable/scriptable alternative (`brew install colima docker
+docker-compose && colima start`) — no GUI app or manual permission dialogs required.
 
-### 3. Or run locally
+Then, one-off, to populate the vector store (only needed once, or when you want more
+companies than whatever's already ingested):
+
+```bash
+source .venv/bin/activate   # host-side venv, see step 3 — the ingest script talks to
+                             # the dockerized Qdrant over QDRANT_URL=http://localhost:6333
+python scripts/ingest_universe.py --filings-per-form 1 --tickers AAPL   # or omit --tickers for all 18
+```
+
+(You can also run it inside the container: `docker compose exec api python
+scripts/ingest_universe.py ...` — `scripts/` and `data/` are both bind-mounted into the
+`api` service, so this works without rebuilding the image.)
+
+### 3. Or run without Docker at all
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+```
 
-# Qdrant needs to be running somewhere reachable at QDRANT_URL — easiest is:
-docker run -p 6333:6333 qdrant/qdrant:v1.12.4
+Qdrant can run in two ways:
 
+- **Server mode** (matches docker-compose): point `QDRANT_URL` at a running instance, e.g.
+  `docker run -p 6333:6333 qdrant/qdrant:v1.12.4` if you have Docker but not Compose set up.
+- **Embedded/local mode** (no Docker at all): set `QDRANT_LOCAL_PATH=data/qdrant_local` in
+  `.env` (leave `QDRANT_URL` alone — local mode takes priority when both are set). This runs
+  Qdrant on-disk in-process — a real persistent store, just no server. The one constraint:
+  only one process can hold that path open at a time, so don't run the API and
+  `ingest_universe.py`/`run_eval.py` concurrently against the same local path.
+
+```bash
 # Ingest filings for the company universe (downloads from EDGAR, chunks, embeds, upserts)
 python scripts/ingest_universe.py --filings-per-form 1
 
@@ -202,7 +239,9 @@ python scripts/run_eval.py --limit 5  # quick smoke run
 ```bash
 pytest tests/ -v
 ruff check .
-mypy src/   # advisory in CI — see .github/workflows/ci.yml
+mypy src/   # advisory (non-blocking) in CI — see .github/workflows/ci.yml. Kept advisory
+            # because numpy's bundled stubs use syntax mypy can choke on depending on the
+            # interpreter version; it isn't a signal on this project's own code quality.
 ```
 
 ---
@@ -242,9 +281,22 @@ GET /health
   is fast enough (~ms) and avoids keeping two indexes in sync; it would need to change for a
   much larger corpus.
 - Numeric-claim → XBRL period matching (`src/eval/faithfulness.py::_match_period`) is a
-  best-effort regex match on quarter/year mentions in the model's stated period, falling
-  back to the most recently filed fact. It's intentionally generous (a 2% tolerance band) to
-  absorb rounding without masking real errors — tune `CONFIRMED_TOLERANCE_PCT` if needed.
-  Errors here show up directly in the retrieval precision / faithfulness metrics.
+  best-effort regex match on quarter/year mentions in the model's stated period. If a
+  specific period is named but no XBRL fact matches it, the claim is reported
+  **unverifiable** rather than compared against a different period's fact — an earlier
+  version of this fell back to "whatever was filed most recently," which produced false
+  "contradicted" verdicts whenever the model's period label didn't exactly match XBRL's
+  (e.g. mixing up a company's fiscal quarter with the calendar quarter — Apple's fiscal
+  year starts in October, so this comes up often for AAPL specifically). Comparison
+  tolerance is intentionally generous (`CONFIRMED_TOLERANCE_PCT = 2.0`) to absorb rounding
+  without masking real errors. Known residual gap: the model can still state a plausible
+  but wrong fiscal-quarter label that happens to match a different real XBRL fact, which
+  reads as "contradicted" for what may actually be a correct claim — the verifier surfaces
+  this visibly (a "Verification notes" footer on the answer) rather than hiding it, but
+  doesn't yet resolve it automatically.
+- 10-K vs. 10-Q Item numbering is handled explicitly (see Retrieval design above) — this
+  was a real bug found via live end-to-end testing, not just synthetic unit tests: every
+  ingested 10-Q chunk was silently mislabeled with 10-K section titles until fixed, which
+  had zeroed out the retrieval-precision metric for any 10-Q-sourced question.
 - Rate limiting for EDGAR is a simple client-side token bucket (`src/data/edgar_client.py`)
   tuned conservatively under SEC's 10 req/sec fair-use cap.
