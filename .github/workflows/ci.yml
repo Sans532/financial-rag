@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type check (mypy, advisory)
+        run: mypy src/ || true
+        # Advisory rather than blocking: kept separate from the required steps above so a
+        # stub-compatibility issue on a bleeding-edge interpreter can't block merges, while
+        # still surfacing type errors in the CI log for review.
+
+      - name: Test (pytest)
+        env:
+          GOOGLE_API_KEY: test-key
+          SEC_USER_AGENT: "financial-rag-ci ci@example.com"
+        run: pytest tests/ -v --cov=src --cov-report=term-missing

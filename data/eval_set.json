@@ -1,0 +1,272 @@
+[
+  {
+    "id": "num_001",
+    "category": "numeric_lookup",
+    "question": "What was Apple's total revenue in its most recent 10-Q?",
+    "companies": ["AAPL"],
+    "expected": {"type": "numeric", "metric": "revenue", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "easy"
+  },
+  {
+    "id": "num_002",
+    "category": "numeric_lookup",
+    "question": "What was Microsoft's net income in its latest 10-Q?",
+    "companies": ["MSFT"],
+    "expected": {"type": "numeric", "metric": "net_income", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "easy"
+  },
+  {
+    "id": "num_003",
+    "category": "numeric_lookup",
+    "question": "What was NVIDIA's diluted earnings per share in its most recent quarterly filing?",
+    "companies": ["NVDA"],
+    "expected": {"type": "numeric", "metric": "eps_diluted", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "easy"
+  },
+  {
+    "id": "num_004",
+    "category": "numeric_lookup",
+    "question": "What was JPMorgan Chase's total assets as reported in its latest 10-Q?",
+    "companies": ["JPM"],
+    "expected": {"type": "numeric", "metric": "total_assets", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "num_005",
+    "category": "numeric_lookup",
+    "question": "What was Johnson & Johnson's research and development expense in its latest 10-Q?",
+    "companies": ["JNJ"],
+    "expected": {"type": "numeric", "metric": "research_and_development", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "num_006",
+    "category": "numeric_lookup",
+    "question": "What was Visa's operating income in its most recent 10-Q?",
+    "companies": ["V"],
+    "expected": {"type": "numeric", "metric": "operating_income", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "num_007",
+    "category": "numeric_lookup",
+    "question": "What was UnitedHealth Group's total liabilities in its latest 10-Q?",
+    "companies": ["UNH"],
+    "expected": {"type": "numeric", "metric": "total_liabilities", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "num_008",
+    "category": "numeric_lookup",
+    "question": "What was Meta Platforms' gross profit in its most recent 10-Q?",
+    "companies": ["META"],
+    "expected": {"type": "numeric", "metric": "gross_profit", "period": "latest_10Q", "tolerance_pct": 5.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "cmp_001",
+    "category": "comparison",
+    "question": "How did Apple's revenue change year-over-year in its most recent 10-Q compared to the same quarter last year?",
+    "companies": ["AAPL"],
+    "expected": {"type": "numeric", "metric": "revenue", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "cmp_002",
+    "category": "comparison",
+    "question": "How did Microsoft's operating income change quarter-over-quarter in its latest 10-Q?",
+    "companies": ["MSFT"],
+    "expected": {"type": "numeric", "metric": "operating_income", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "cmp_003",
+    "category": "comparison",
+    "question": "How did Goldman Sachs' net income change year-over-year in its most recent 10-Q?",
+    "companies": ["GS"],
+    "expected": {"type": "numeric", "metric": "net_income", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "cmp_004",
+    "category": "comparison",
+    "question": "How did Eli Lilly's revenue trend across its two most recent quarterly filings?",
+    "companies": ["LLY"],
+    "expected": {"type": "numeric", "metric": "revenue", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "cmp_005",
+    "category": "comparison",
+    "question": "How did NVIDIA's gross margin change compared to the prior quarter?",
+    "companies": ["NVDA"],
+    "expected": {"type": "numeric", "metric": "gross_profit", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "cmp_006",
+    "category": "comparison",
+    "question": "How did Wells Fargo's total assets change year-over-year in its latest 10-Q?",
+    "companies": ["WFC"],
+    "expected": {"type": "numeric", "metric": "total_assets", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "cmp_007",
+    "category": "comparison",
+    "question": "How did Salesforce's operating expenses change year-over-year in its most recent 10-Q?",
+    "companies": ["CRM"],
+    "expected": {"type": "numeric", "metric": "operating_expenses", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "cmp_008",
+    "category": "comparison",
+    "question": "How did Pfizer's cost of revenue change year-over-year in its most recent 10-Q?",
+    "companies": ["PFE"],
+    "expected": {"type": "numeric", "metric": "cost_of_revenue", "period": "latest_10Q", "tolerance_pct": 8.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "qual_001",
+    "category": "qualitative",
+    "question": "What risk factors did NVIDIA highlight in its most recent 10-K?",
+    "companies": ["NVDA"],
+    "expected": {"type": "qualitative", "required_concepts": ["supply chain", "competition", "export restrictions", "customer concentration"]},
+    "expected_sources": {"filing_type": "10-K", "section": "Item 1A - Risk Factors"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "qual_002",
+    "category": "qualitative",
+    "question": "Why did Meta's operating expenses increase according to its most recent MD&A?",
+    "companies": ["META"],
+    "expected": {"type": "qualitative", "required_concepts": ["infrastructure", "headcount", "AI", "compensation"]},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "qual_003",
+    "category": "qualitative",
+    "question": "What legal proceedings is Johnson & Johnson currently facing according to its latest 10-K?",
+    "companies": ["JNJ"],
+    "expected": {"type": "qualitative", "required_concepts": ["litigation", "talc", "product liability"]},
+    "expected_sources": {"filing_type": "10-K", "section": "Item 3 - Legal Proceedings"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "qual_004",
+    "category": "qualitative",
+    "question": "What does Bank of America identify as its primary market risks in its most recent 10-K?",
+    "companies": ["BAC"],
+    "expected": {"type": "qualitative", "required_concepts": ["interest rate risk", "credit risk", "market risk"]},
+    "expected_sources": {"filing_type": "10-K", "section": "Item 7A - Quantitative and Qualitative Disclosures About Market Risk"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "qual_005",
+    "category": "qualitative",
+    "question": "Why did Apple's services revenue grow according to its most recent MD&A?",
+    "companies": ["AAPL"],
+    "expected": {"type": "qualitative", "required_concepts": ["App Store", "subscriptions", "advertising", "services"]},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "qual_006",
+    "category": "qualitative",
+    "question": "What risk factors does UnitedHealth Group cite related to regulation in its most recent 10-K?",
+    "companies": ["UNH"],
+    "expected": {"type": "qualitative", "required_concepts": ["regulation", "reimbursement", "healthcare policy"]},
+    "expected_sources": {"filing_type": "10-K", "section": "Item 1A - Risk Factors"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "qual_007",
+    "category": "qualitative",
+    "question": "What business segments does Alphabet describe in its most recent 10-K?",
+    "companies": ["GOOGL"],
+    "expected": {"type": "qualitative", "required_concepts": ["Google Search", "YouTube", "Google Cloud", "advertising"]},
+    "expected_sources": {"filing_type": "10-K", "section": "Item 1 - Business"},
+    "difficulty": "easy"
+  },
+  {
+    "id": "qual_008",
+    "category": "qualitative",
+    "question": "Why did AbbVie's revenue decline according to its most recent MD&A?",
+    "companies": ["ABBV"],
+    "expected": {"type": "qualitative", "required_concepts": ["Humira", "biosimilar", "loss of exclusivity"]},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "multi_001",
+    "category": "multi_company",
+    "question": "Compare the gross margins of JPMorgan Chase and Bank of America in their latest quarterly filings.",
+    "companies": ["JPM", "BAC"],
+    "expected": {"type": "numeric", "metric": "gross_profit", "period": "latest_10Q", "tolerance_pct": 10.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "multi_002",
+    "category": "multi_company",
+    "question": "Compare Apple's and Microsoft's revenue in their most recent 10-Q filings.",
+    "companies": ["AAPL", "MSFT"],
+    "expected": {"type": "numeric", "metric": "revenue", "period": "latest_10Q", "tolerance_pct": 10.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "multi_003",
+    "category": "multi_company",
+    "question": "Compare Pfizer's and Merck's research and development spending in their latest 10-Q filings.",
+    "companies": ["PFE", "MRK"],
+    "expected": {"type": "numeric", "metric": "research_and_development", "period": "latest_10Q", "tolerance_pct": 10.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "medium"
+  },
+  {
+    "id": "multi_004",
+    "category": "multi_company",
+    "question": "Which grew faster year-over-year, NVIDIA's or Meta's operating income?",
+    "companies": ["NVDA", "META"],
+    "expected": {"type": "numeric", "metric": "operating_income", "period": "latest_10Q", "tolerance_pct": 10.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Item 7 - Management's Discussion and Analysis (MD&A)"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "multi_005",
+    "category": "multi_company",
+    "question": "Compare the risk factors disclosed by Goldman Sachs and Morgan Stanley in their most recent 10-K filings.",
+    "companies": ["GS", "MS"],
+    "expected": {"type": "qualitative", "required_concepts": ["market risk", "regulatory", "capital requirements"]},
+    "expected_sources": {"filing_type": "10-K", "section": "Item 1A - Risk Factors"},
+    "difficulty": "hard"
+  },
+  {
+    "id": "multi_006",
+    "category": "multi_company",
+    "question": "Compare total assets across JPMorgan, Bank of America, and Wells Fargo in their latest 10-Q filings.",
+    "companies": ["JPM", "BAC", "WFC"],
+    "expected": {"type": "numeric", "metric": "total_assets", "period": "latest_10Q", "tolerance_pct": 10.0},
+    "expected_sources": {"filing_type": "10-Q", "section": "Financial Statements and Supplementary Data"},
+    "difficulty": "hard"
+  }
+]
