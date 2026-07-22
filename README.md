@@ -139,9 +139,12 @@ This is the part of the project meant to be defensible in an interview, not an a
    This writes `eval_report.md` (also servable via `GET /eval-report`) and prints it to
    stdout. Run this yourself with a configured `GOOGLE_API_KEY` and an ingested corpus —
    results depend on your ingested filings and will vary by model/config, so no fixed
-   numbers are hardcoded here. A full 30-question run at the default `gemini-3.1-flash-lite`
-   model costs a few cents at paid-tier pricing (likely free within Gemini's free-tier
-   daily quota) — see `src/eval/latency.py::MODEL_PRICING`.
+   numbers are hardcoded here. Observed on a full 30-question run against all 18
+   companies at the default `gemini-3.1-flash-lite` model: ~$0.05 (well within a paid
+   tier's cost, and free-tier eligible), ~35-45 minutes wall-clock (client-side rate
+   limiting paces requests under the free tier's per-minute cap — see Design notes below),
+   and 46 numeric claims checked. The free tier's 500-requests/day cap means at most one
+   or two full runs fit in a day before needing to wait for the next daily reset.
 
 ---
 
@@ -283,20 +286,44 @@ GET /health
 - Numeric-claim → XBRL period matching (`src/eval/faithfulness.py::_match_period`) is a
   best-effort regex match on quarter/year mentions in the model's stated period. If a
   specific period is named but no XBRL fact matches it, the claim is reported
-  **unverifiable** rather than compared against a different period's fact — an earlier
-  version of this fell back to "whatever was filed most recently," which produced false
-  "contradicted" verdicts whenever the model's period label didn't exactly match XBRL's
-  (e.g. mixing up a company's fiscal quarter with the calendar quarter — Apple's fiscal
-  year starts in October, so this comes up often for AAPL specifically). Comparison
-  tolerance is intentionally generous (`CONFIRMED_TOLERANCE_PCT = 2.0`) to absorb rounding
-  without masking real errors. Known residual gap: the model can still state a plausible
-  but wrong fiscal-quarter label that happens to match a different real XBRL fact, which
-  reads as "contradicted" for what may actually be a correct claim — the verifier surfaces
-  this visibly (a "Verification notes" footer on the answer) rather than hiding it, but
-  doesn't yet resolve it automatically.
+  **unverifiable** rather than compared against a different period's fact, avoiding false
+  "contradicted" verdicts from a period mismatch on our side rather than a real error in
+  the claim. A more subtle version of this was found via live full-eval runs: a single
+  filing's balance sheet reports the current period alongside comparative prior periods
+  (prior year-end, prior-year same-quarter), and XBRL's `fiscal_year`/`fiscal_period`
+  label describes the *filing's* reporting context, not which period a given fact covers —
+  so multiple facts can share an identical `(fiscal_year, fiscal_period, filed)` tuple
+  (confirmed directly against JPMorgan's real XBRL data: three facts, all labeled
+  "Q1 2026", covering three different period-end dates). Fixed by disambiguating on
+  latest `period_end` rather than an arbitrary tie-break — this alone moved the full
+  30-question eval's faithfulness score from ~5% to ~48%, i.e. it was the dominant driver
+  of low scores, not model hallucination. Comparison tolerance is intentionally generous
+  (`CONFIRMED_TOLERANCE_PCT = 2.0`) to absorb rounding without masking real errors.
+- The XBRL metric taxonomy (`src/data/xbrl_client.py::METRIC_TO_TAGS`) initially conflated
+  ongoing R&D expense with one-time "acquired in-process R&D" charges (common in pharma
+  filings after an acquisition) under a single metric — comparing a $9B one-time charge
+  against a $3.6B ongoing-R&D XBRL fact always "contradicted" even when both figures were
+  individually correct. Split into separate `research_and_development` /
+  `acquired_iprd_expense` metrics, with the claim-extraction prompt explicitly instructed
+  to distinguish them. Also found Pfizer reports zero facts under the standard
+  `ResearchAndDevelopmentExpense` tag (it uses
+  `ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost` instead) — added as a
+  fallback alias. This taxonomy is necessarily incomplete; other companies may use other
+  nonstandard tags not yet covered.
+- The claim-extraction prompt originally pulled any dollar figure resembling a metric
+  name, including narrative cost/revenue "drivers" mentioned in MD&A prose (e.g. "$180
+  million in higher spending on X") — these have no standalone XBRL fact to check them
+  against and always read as unverifiable/contradicted. Tightened to only extract
+  claims restating a period's aggregate reported figure.
 - 10-K vs. 10-Q Item numbering is handled explicitly (see Retrieval design above) — this
   was a real bug found via live end-to-end testing, not just synthetic unit tests: every
   ingested 10-Q chunk was silently mislabeled with 10-K section titles until fixed, which
   had zeroed out the retrieval-precision metric for any 10-Q-sourced question.
 - Rate limiting for EDGAR is a simple client-side token bucket (`src/data/edgar_client.py`)
-  tuned conservatively under SEC's 10 req/sec fair-use cap.
+  tuned conservatively under SEC's 10 req/sec fair-use cap. Gemini calls (`src/agents/
+  llm.py`) are similarly paced client-side and retry 429s using the API's own suggested
+  cooldown — required in practice, since this pipeline's per-question call volume
+  (planner + synthesizer + claim extraction, doubling on every verifier retry) exceeds
+  the free tier's per-minute cap easily; the free tier's 500-requests/day cap is a harder
+  ceiling this doesn't work around and will still exhaust across repeated full eval runs
+  in a single day.
