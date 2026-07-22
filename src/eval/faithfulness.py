@@ -17,11 +17,27 @@ from src.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-CLAIM_EXTRACTION_SYSTEM_PROMPT = f"""Extract every numeric financial claim from the given text \
-(dollar amounts, percentages, ratios, per-share figures). For each claim, output an object with:
+CLAIM_EXTRACTION_SYSTEM_PROMPT = f"""Extract numeric financial claims from the given text that \
+state a company's AGGREGATE reported figure for a period — the kind of number that appears as \
+a single line item on a financial statement (total revenue, total net income, total R&D \
+expense, total assets, etc.).
+
+Do NOT extract:
+- Narrative sub-components or cost/revenue "drivers" mentioned in prose (e.g. "$180 million in \
+higher spending on X", "primarily due to a $50 million increase in Y") — these describe a \
+piece of a total, not the total itself, and have no standalone XBRL fact to check them against.
+- One-off deal, payment, or milestone figures (acquisition prices, upfront/milestone payments, \
+specific product-line figures) unless the text is explicitly restating them as the period's \
+total for one of the metrics below.
+
+For each claim that DOES qualify, output an object with:
 
 - "text": the exact sentence or clause containing the claim
-- "metric": one of {list(METRIC_TO_TAGS.keys())} (pick the closest match; if none fit, use "other")
+- "metric": one of {list(METRIC_TO_TAGS.keys())} (pick the closest match; if none fit, use \
+"other"). Note: "research_and_development" means ONGOING R&D expense only — a separate \
+one-time "acquired in-process R&D" / "IPR&D" charge (common in pharma filings after an \
+acquisition) is a DIFFERENT line item and must be tagged "acquired_iprd_expense" instead, \
+even if it's mentioned in the same sentence or paragraph as ongoing R&D.
 - "value": the numeric value as a plain float (convert e.g. "$5.2 billion" -> 5200000000, \
 "12%" -> 12)
 - "unit": "USD", "USD_millions", "USD_billions", "%", "ratio", or "per_share"
@@ -78,6 +94,22 @@ def _normalize_unit(value: float, unit: str) -> float:
     return value
 
 
+def _latest_by_period_end(facts: list):
+    """Pick the fact whose reported period actually ends latest.
+
+    A single filing's balance sheet reports the current period alongside comparative
+    prior periods (prior year-end, prior-year same-quarter) — and XBRL's fiscal_year/
+    fiscal_period label describes the *filing's* reporting context, not which of these
+    period_end dates a given fact covers. Multiple facts routinely share the identical
+    (fiscal_year, fiscal_period, filed) tuple as a result, e.g. a 10-Q filed May 2026
+    labeled "Q1 2026" containing separate facts for period_end 2025-03-31 (prior-year
+    comparative), 2025-12-31 (prior fiscal year-end comparative), and 2026-03-31 (the
+    actual current quarter). Selecting by `filed` alone breaks the tie arbitrarily;
+    period_end is what actually distinguishes "current" from "comparative" here.
+    """
+    return max(facts, key=lambda f: (f.filed, f.period_end))
+
+
 def _match_period(facts: list, period: str):
     year_match = _PERIOD_YEAR_RE.search(period)
     quarter_match = _PERIOD_QUARTER_RE.search(period)
@@ -89,10 +121,10 @@ def _match_period(facts: list, period: str):
         fp = f"Q{quarter_match.group(1)}"
         quarter_candidates = [f for f in candidates if f.fiscal_period == fp]
         if quarter_candidates:
-            return max(quarter_candidates, key=lambda f: f.filed)
+            return _latest_by_period_end(quarter_candidates)
     elif candidates:
         fy_candidates = [f for f in candidates if f.fiscal_period == "FY"]
-        return max(fy_candidates or candidates, key=lambda f: f.filed)
+        return _latest_by_period_end(fy_candidates or candidates)
     return None
 
 

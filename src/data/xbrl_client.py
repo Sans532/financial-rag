@@ -35,7 +35,23 @@ METRIC_TO_TAGS: dict[str, list[str]] = {
     "total_assets": ["Assets"],
     "total_liabilities": ["Liabilities"],
     "cost_of_revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
-    "research_and_development": ["ResearchAndDevelopmentExpense"],
+    # Some large pharma filers (e.g. Pfizer) report zero facts under the plain
+    # ResearchAndDevelopmentExpense tag and use this longer tag name instead — it excludes
+    # acquired in-process R&D by design, which is exactly the "ongoing R&D" concept this
+    # metric is meant to capture, so it's a correct fallback, not just a synonym.
+    "research_and_development": [
+        "ResearchAndDevelopmentExpense",
+        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+    ],
+    # Distinct from ongoing R&D: a one-time (often non-cash) charge recognized when a
+    # company acquires in-process R&D, typically via acquisition. Filings sometimes
+    # mention both in the same paragraph — conflating them under "research_and_development"
+    # produces false verification mismatches (a $9B one-time charge compared against a
+    # $3.6B ongoing-R&D XBRL fact will never match).
+    "acquired_iprd_expense": [
+        "ResearchAndDevelopmentInProcess",
+        "ResearchAndDevelopmentAssetAcquiredOtherThanThroughBusinessCombinationWrittenOff",
+    ],
     "operating_expenses": ["OperatingExpenses", "CostsAndExpenses"],
 }
 

@@ -71,13 +71,13 @@ def test_get_company_facts_parses_json():
     assert data["cik"] == 320193
 
 
-def _fact(value, fy, fp, form="10-Q", filed="2024-05-01"):
+def _fact(value, fy, fp, form="10-Q", filed="2024-05-01", period_end="2024-03-31"):
     return XbrlFact(
         tag="NetIncomeLoss",
         value=value,
         unit="USD",
         period_start=None,
-        period_end="2024-03-31",
+        period_end=period_end,
         fiscal_year=fy,
         fiscal_period=fp,
         form=form,
@@ -102,6 +102,25 @@ def test_match_period_falls_back_to_fy_for_annual_period():
 def test_match_period_returns_none_without_year():
     facts = [_fact(100, 2024, "Q1")]
     assert _match_period(facts, "latest") is None
+
+
+def test_match_period_disambiguates_comparative_facts_sharing_the_same_fy_fp_label():
+    """A single 10-Q's balance sheet reports the current quarter alongside comparative
+    prior periods (prior year-end, prior-year same-quarter) — XBRL's fy/fp label
+    describes the filing's reporting context, not which period_end a given fact covers,
+    so multiple facts can share an identical (fiscal_year, fiscal_period, filed) tuple.
+    The correct "current" fact is the one whose period_end is latest, found via live
+    JPMorgan XBRL data where this exact collision produced a false 'contradicted'
+    verdict for an otherwise-correct claim."""
+    facts = [
+        _fact(4_357_856_000_000, 2026, "Q1", filed="2026-05-01", period_end="2025-03-31"),
+        _fact(4_424_900_000_000, 2026, "Q1", filed="2026-05-01", period_end="2025-12-31"),
+        _fact(4_900_475_000_000, 2026, "Q1", filed="2026-05-01", period_end="2026-03-31"),
+    ]
+    result = _match_period(facts, "Q1 2026")
+    assert result is not None
+    assert result.value == 4_900_475_000_000
+    assert result.period_end == "2026-03-31"
 
 
 def test_normalize_unit_billions_and_millions():
@@ -171,6 +190,55 @@ def test_verify_claim_unverifiable_when_no_facts():
     result = verify_claim(claim, _StubXbrlClient([]))
     assert result["status"] == "unverifiable"
     assert result["xbrl_value"] is None
+
+
+@respx.mock
+def test_get_metric_falls_back_to_alias_tag_when_primary_tag_is_empty():
+    """Some filers (e.g. Pfizer) report zero facts under the plain 'ResearchAndDevelopment
+    Expense' tag and use 'ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost'
+    instead — get_metric must fall through to the alias rather than reporting no data."""
+    respx.get(
+        "https://data.sec.gov/api/xbrl/companyconcept/CIK0000078003/us-gaap/"
+        "ResearchAndDevelopmentExpense.json"
+    ).mock(return_value=httpx.Response(404))
+    respx.get(
+        "https://data.sec.gov/api/xbrl/companyconcept/CIK0000078003/us-gaap/"
+        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost.json"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "units": {
+                    "USD": [
+                        {
+                            "val": 2490000000,
+                            "end": "2026-03-31",
+                            "fy": 2026,
+                            "fp": "Q1",
+                            "form": "10-Q",
+                            "filed": "2026-05-01",
+                        }
+                    ]
+                }
+            },
+        )
+    )
+    client = XbrlClient(user_agent="test test@example.com")
+    facts = client.get_metric("0000078003", "research_and_development")
+    assert len(facts) == 1
+    assert facts[0].value == 2490000000
+    assert facts[0].tag == "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"
+
+
+def test_acquired_iprd_expense_is_a_distinct_metric_from_research_and_development():
+    """Acquired in-process R&D is a one-time charge on a different XBRL tag than ongoing
+    R&D expense — comparing one against the other's fact would always look 'contradicted'
+    even when both figures are individually correct, so they must not share tag aliases."""
+    from src.data.xbrl_client import METRIC_TO_TAGS
+
+    rd_tags = set(METRIC_TO_TAGS["research_and_development"])
+    iprd_tags = set(METRIC_TO_TAGS["acquired_iprd_expense"])
+    assert rd_tags.isdisjoint(iprd_tags)
 
 
 def test_verify_claim_unverifiable_for_unknown_company():
