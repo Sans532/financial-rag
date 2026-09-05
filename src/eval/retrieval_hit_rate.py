@@ -33,7 +33,7 @@ def load_retrieval_labels() -> list[RetrievalLabel]:
 
 
 @dataclass
-class RetrievalPrecisionResult:
+class RetrievalHitResult:
     question_id: str
     hit: bool
     top_k: int
@@ -51,15 +51,15 @@ def _matches(chunk_results: list[ScoredChunk], label: RetrievalLabel) -> bool:
     return False
 
 
-def evaluate_retrieval_precision(
+def evaluate_retrieval_hit_rate(
     searcher: HybridSearcher,
     questions_by_id: dict[str, str],
     top_k: int = 5,
-) -> list[RetrievalPrecisionResult]:
+) -> list[RetrievalHitResult]:
     """For each labeled question, run hybrid search per company and check whether any
     top-k result lands in an acceptable (filing_type, section) bucket."""
     labels = load_retrieval_labels()
-    results: list[RetrievalPrecisionResult] = []
+    results: list[RetrievalHitResult] = []
 
     for label in labels:
         query = questions_by_id.get(label.question_id)
@@ -70,13 +70,13 @@ def evaluate_retrieval_precision(
             merged.extend(searcher.search(query, company=company, final_k=top_k))
         hit = _matches(merged, label)
         results.append(
-            RetrievalPrecisionResult(question_id=label.question_id, hit=hit, top_k=top_k)
+            RetrievalHitResult(question_id=label.question_id, hit=hit, top_k=top_k)
         )
 
     return results
 
 
-def precision_score(results: list[RetrievalPrecisionResult]) -> float:
+def hit_rate_score(results: list[RetrievalHitResult]) -> float:
     if not results:
         return 0.0
     return sum(1 for r in results if r.hit) / len(results)

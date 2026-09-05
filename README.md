@@ -124,13 +124,18 @@ This is the part of the project meant to be defensible in an interview, not an a
    headline number is `confirmed claims / total claims`, pooled across the whole eval run —
    this is the same code path used live by the Verifier agent, so "verified in eval" and
    "verified in production" are identical logic.
-3. **Retrieval precision** — `src/eval/retrieval_precision.py` + `data/retrieval_labels.json`,
+3. **Retrieval hit rate** — `src/eval/retrieval_hit_rate.py` + `data/retrieval_labels.json`,
    a small hand-labeled set of (question → acceptable filing-type/section) pairs, checked
-   against what the hybrid retriever actually returns.
-4. **Latency & cost** — `src/eval/latency.py` breaks down per-query latency by agent step
+   against what the hybrid retriever actually returns. It is deliberately named hit rate
+   (recall@k), not precision: the denominator is *questions*, not retrieved chunks — what
+   matters is whether answer-bearing evidence reached the synthesizer at all.
+4. **Retrieval ablation** — `scripts/ablate_retrieval.py` quantifies what the hybrid stack
+   actually buys over dense retrieval alone (see *Does hybrid retrieval earn its keep?*
+   below). Pure retrieval, no LLM calls, so it runs free and needs no `GOOGLE_API_KEY`.
+5. **Latency & cost** — `src/eval/latency.py` breaks down per-query latency by agent step
    (from the `trace` field every node writes to) and estimates LLM token cost from logged
    Gemini usage.
-5. **Report** — regenerate everything with:
+6. **Report** — regenerate everything with:
 
    ```bash
    python scripts/run_eval.py
@@ -146,6 +151,56 @@ This is the part of the project meant to be defensible in an interview, not an a
    and 46 numeric claims checked. The free tier's 500-requests/day cap means at most one
    or two full runs fit in a day before needing to wait for the next daily reset.
 
+
+### Does hybrid retrieval earn its keep?
+
+Asserting that hybrid + reranking beats dense retrieval is easy; measuring it is the
+point. `scripts/ablate_retrieval.py` runs four arms over the same 30 labeled questions
+with an identical candidate budget (`dense_k = sparse_k = 20`) and the same `final_k`, so
+the only variable is how candidates are selected and ordered:
+
+```bash
+python scripts/ablate_retrieval.py --final-k 5
+```
+
+| Arm | hit@1 | hit@3 | hit@5 | MRR |
+|---|---:|---:|---:|---:|
+| Dense only | 33.3% | 46.7% | 56.7% | 0.418 |
+| BM25 only | 30.0% | 53.3% | 56.7% | 0.412 |
+| + RRF fusion | 36.7% | 53.3% | 63.3% | 0.462 |
+| **+ cross-encoder rerank** | **40.0%** | **56.7%** | **70.0%** | **0.504** |
+
+Dense-only to the full stack is **56.7% → 70.0% hit@5** (+23.5% relative), with MRR up
+20.6%; fusion and reranking contributed +6.7pp each. The full-stack arm reproduces
+`run_eval.py`'s own hit-rate number exactly, which is the check that the ablation harness
+is measuring the same thing the eval does.
+
+The per-category breakdown is the more useful result, because the two retrievers fail on
+*different* question types:
+
+| Category | Dense | BM25 | + RRF | + rerank |
+|---|---:|---:|---:|---:|
+| numeric_lookup | 75% | **88%** | 75% | 75% |
+| comparison | 50% | 62% | **75%** | 62% |
+| multi_company | 67% | 50% | **83%** | **83%** |
+| qualitative | 38% | 25% | 25% | **62%** |
+
+BM25 alone beats dense embeddings on numeric lookups — exact tickers and us-gaap metric
+names are a lexical matching problem, not a semantic one. On open-ended "why did X change"
+questions the reverse holds and BM25 actively hurts, dragging lexically-similar boilerplate
+into the fused list; the cross-encoder is what recovers those (25% → 62%). That
+complementarity is the argument for hybrid, and it is not visible in the headline number.
+
+Measured per-stage cost, per company per query: dense 11ms, BM25 54ms, RRF <1ms,
+cross-encoder 227ms — roughly 290ms for the full stack against 11ms for dense-only. That
+is ~26x on the retrieval step but under 1% of end-to-end query latency, which is dominated
+by LLM calls.
+
+**Caveat, stated plainly:** n = 30. The 13.3pp headline gap is 5 questions fixed against 1
+regression, and a single run with no seed variance. It is directional evidence, not a
+significance claim. The ablation also measures retrieval quality only — whether better
+retrieval yields more faithful *answers* would need a per-arm end-to-end re-run.
+
 ---
 
 ## Project structure
@@ -155,7 +210,7 @@ src/
   agents/       LangGraph state schema + each agent node + graph wiring
   retrieval/    chunking, embeddings, Qdrant vector store, BM25, hybrid search, reranker
   data/         SEC EDGAR / XBRL / yfinance / Finnhub clients, universe config, ingestion
-  eval/         eval set loader, faithfulness metric, retrieval precision, latency, report
+  eval/         eval set loader, faithfulness metric, retrieval hit rate, latency, report
   api/          FastAPI app, routes, schemas
 frontend/       Streamlit UI
 tests/          pytest suite (chunking, retrieval, XBRL parsing, verifier, EDGAR client)
@@ -318,7 +373,7 @@ GET /health
 - 10-K vs. 10-Q Item numbering is handled explicitly (see Retrieval design above) — this
   was a real bug found via live end-to-end testing, not just synthetic unit tests: every
   ingested 10-Q chunk was silently mislabeled with 10-K section titles until fixed, which
-  had zeroed out the retrieval-precision metric for any 10-Q-sourced question.
+  had zeroed out the retrieval hit-rate metric for any 10-Q-sourced question.
 - Rate limiting for EDGAR is a simple client-side token bucket (`src/data/edgar_client.py`)
   tuned conservatively under SEC's 10 req/sec fair-use cap. Gemini calls (`src/agents/
   llm.py`) are similarly paced client-side and retry 429s using the API's own suggested

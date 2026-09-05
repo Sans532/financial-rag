@@ -25,7 +25,7 @@ class EvalReport:
     question_results: list[QuestionResult]
     global_claim_faithfulness: float  # confirmed / total, pooled across ALL claims
     total_claims: int
-    retrieval_precision: float
+    retrieval_hit_rate: float
     retrieval_n: int
     total_cost_usd: float
     avg_latency_ms: float
@@ -46,7 +46,7 @@ def render_markdown(report: EvalReport) -> str:
         f"against SEC XBRL ground truth)"
     )
     lines.append(
-        f"- **Retrieval precision:** {report.retrieval_precision:.1%} "
+        f"- **Retrieval hit rate (hit@5):** {report.retrieval_hit_rate:.1%} "
         f"({report.retrieval_n} labeled questions)"
     )
     lines.append(f"- **Average latency:** {report.avg_latency_ms / 1000:.1f}s per query")

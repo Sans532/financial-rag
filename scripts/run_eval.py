@@ -20,7 +20,7 @@ from src.config import get_settings
 from src.eval.eval_set import EvalQuestion, load_eval_set
 from src.eval.latency import estimate_cost_usd, summarize_latency
 from src.eval.report import EvalReport, QuestionResult, render_markdown
-from src.eval.retrieval_precision import evaluate_retrieval_precision, precision_score
+from src.eval.retrieval_hit_rate import evaluate_retrieval_hit_rate, hit_rate_score
 from src.logging_config import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -114,8 +114,8 @@ def main() -> None:
     # storage path.
     searcher = get_hybrid_searcher()
     questions_by_id = {q.id: q.question for q in questions}
-    retrieval_results = evaluate_retrieval_precision(searcher, questions_by_id)
-    retrieval_prec = precision_score(retrieval_results)
+    retrieval_results = evaluate_retrieval_hit_rate(searcher, questions_by_id)
+    retrieval_hit = hit_rate_score(retrieval_results)
 
     avg_latency = (
         sum(r.latency.total_ms for r in question_results) / len(question_results)
@@ -128,7 +128,7 @@ def main() -> None:
         question_results=question_results,
         global_claim_faithfulness=global_faithfulness,
         total_claims=total_claims,
-        retrieval_precision=retrieval_prec,
+        retrieval_hit_rate=retrieval_hit,
         retrieval_n=len(retrieval_results),
         total_cost_usd=cost,
         avg_latency_ms=avg_latency,
@@ -140,7 +140,7 @@ def main() -> None:
         "eval_complete",
         questions=len(question_results),
         faithfulness=global_faithfulness,
-        retrieval_precision=retrieval_prec,
+        retrieval_hit_rate=retrieval_hit,
         cost_usd=cost,
         report_path=str(settings.eval_report_path),
     )
